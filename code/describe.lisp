@@ -1,17 +1,33 @@
 (in-package #:tazivor)
 
 (defmethod describe-object (object stream)
-  (loop for axis in (axes object)
-        do (loop with first = t
-                 with iterator = (make-cell-iterator object axis)
+  (pprint-logical-block (stream nil)
+    (format stream "~s~:@_" object)
+    (pprint-logical-block (stream (axes object))
+      (loop (pprint-exit-if-list-exhausted)
+            (describe-axis object (pprint-pop) stream)))))
+
+(defmethod describe-axis (object axis stream)
+  (pprint-logical-block (stream nil)
+    (pprint-newline :mandatory stream)
+    (cond ((and axis (listp axis))
+           (format stream "~a~2I~:@_" (first axis))
+           (loop for sub-axis in (cdr axis)
+                 do (describe-axis object sub-axis stream)))
+          (t
+           (when axis
+             (format stream "~a~:@_" axis))
+           (loop with iterator = (make-cell-iterator object axis)
                  for (cell cellp) = (multiple-value-list (funcall iterator))
                  while cellp
-                 when first
-                   do (pprint axis stream)
-                      (setf first nil)
-                 do (pprint cell)
-                    (multiple-value-bind (value boundp)
-                        (cell-value object axis cell)
-                      (if boundp
-                          (pprint value stream)
-                          (write-line "UNBOUND" stream))))))
+                 do (describe-cell object axis cell stream))))))
+
+(defmethod describe-cell (object axis cell stream)
+  (format stream "~a ↦ ~2I~:_" cell)
+  (multiple-value-bind (value boundp)
+      (cell-value object axis cell)
+    (if boundp
+        (write value :stream stream)
+        (write-string "UNBOUND" stream)))
+  (pprint-indent :block 0 stream)
+  (pprint-newline :mandatory stream))

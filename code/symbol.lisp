@@ -2,7 +2,7 @@
 
 (defmethod axes ((object symbol))
   (declare (ignore object))
-  (list 'variable))
+  `(variable class))
 
 (defmethod make-cell-iterator ((object symbol) (axis (eql 'variable)))
   (declare (ignore object axis))
@@ -44,4 +44,15 @@
 (defmethod (setf cell-value) (new-value (object symbol) axis (cell (eql :documentation)))
   (declare (ignore cell))
   (setf (documentation object axis) new-value))
+
+(defmethod make-cell-iterator ((object symbol) (axis (eql 'class)))
+  (declare (ignore object axis))
+  (make-list-iterator (list :value)))
+
+(defmethod cell-value ((object symbol) (axis (eql 'class)) (cell (eql :value)))
+  (declare (ignore axis cell))
+  (let ((class (find-class object nil)))
+    (if class
+        (values class t t)
+        (values nil nil t))))
 
