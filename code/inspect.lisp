@@ -24,14 +24,45 @@
             (values line nil))))))
 
 (defun terminal-help (stream &optional (item nil itemp))
-  (format stream "?, h, help - help~%")
+  (if itemp
+      (let ((args (aref (terminal-context-cells *inspect-context*) item)))
+        (format stream "Inspector Help for ~a~@[ on axis ~a~]~%~
+                        (inspect|i) ~a             - inspect cell value~%"
+                (third args) (second args) item)
+        (when (apply #'cell-value-setf-p args)
+          (format stream "(setf|s) ~a <form>         - Set cell value~%" item))
+        (when (apply #'cell-makunbound-p args)
+          (format stream "(makunbound|m|u) ~a <form> - Set cell value to unbound~%" item))
+        (when (apply #'cell-remove-p args)
+          (format stream "(remove|r) ~a <form>       - Remove cell~%" item)))
+      (format stream "General Inspector Help~%~
+                      (help|h|?) <integer>?      - General help or cell specific help~%~
+                      (inspect|i) <integer>?     - Reinspect current object or cell~%~
+                      (setf|s) <integer> <form>  - SETF cell value~%~
+                      (makunbound|m|u) <integer> - MAKUNBOUND cell value~%~
+                      (remove|r) <integer>       - REMOVE cell~%~
+                      (quit|q)                   - Quit inspector~%"))
   nil)
+
+(defun terminal-inspect-current (stream &optional (item nil itemp))
+  (when itemp    
+    (push (aref (terminal-context-cells *inspect-context*) item)
+          (terminal-context-objects *inspect-context*)))
+  :inspect)
+
+(defun terminal-previous (stream)
+  (cond ((cdr (terminal-context-objects *inspect-context*))
+         (pop (terminal-context-objects *inspect-context*))
+         :inspect)
+        (t
+         (format stream "No previous object to inspect.~%")
+         nil)))
 
 (defun terminal-setf (stream item form)
   (let ((args (aref (terminal-context-cells *inspect-context*) item)))
     (cond ((apply #'cell-value-setf-p args)
            (setf (apply #'cell-value args) (eval form))
-           :redisplay)
+           :inspect)
           (t
            (format stream "Cell ~a~@[ on axis ~a~] does not support SETF.~%"
                    (third args) (second args))
@@ -41,7 +72,7 @@
   (let ((args (aref (terminal-context-cells *inspect-context*) item)))
     (cond ((apply #'cell-makunbound-p args)
            (apply #'cell-makunbound args)
-           :redisplay)
+           :inspect)
           (t
            (format stream "Cell ~a~@[ on axis ~a~] does not support MAKUNBOUND.~%"
                    (third args) (second args))
@@ -51,7 +82,7 @@
   (let ((args (aref (terminal-context-cells *inspect-context*) item)))
     (cond ((apply #'cell-remove-p args)
            (apply #'cell-remove args)
-           :redisplay)
+           :inspect)
           (t
            (format stream "Cell ~a~@[ on axis ~a~] does not support REMOVE.~%"
                    (third args) (second args))
@@ -66,6 +97,10 @@
     (setf (gethash "?" commands) #'terminal-help
           (gethash "h" commands) #'terminal-help
           (gethash "help" commands) #'terminal-help
+          (gethash "inspect" commands) #'terminal-inspect-current
+          (gethash "i" commands) #'terminal-inspect-current
+          (gethash "previous" commands) #'terminal-previous
+          (gethash "p" commands) #'terminal-previous
           (gethash "s" commands) #'terminal-setf
           (gethash "setf" commands) #'terminal-setf
           (gethash "m" commands) #'terminal-makunbound
@@ -81,10 +116,10 @@
           do (case (apply handler *terminal-io* forms)
                (:quit
                 (return-from terminal-inspect))
-               (:redisplay
+               (:inspect
                 (setf (fill-pointer (terminal-context-cells *inspect-context*)) 0)
-                (inspect-object object *terminal-io*)
-                (terpri *terminal-io*)))))
+                (inspect-object (first (terminal-context-objects *inspect-context*) *terminal-io*)
+                (terpri *terminal-io*))))))
   (values))
 
 (defmethod inspect-object (object stream)
