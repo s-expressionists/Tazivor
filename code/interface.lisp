@@ -31,11 +31,6 @@
     (declare (ignore object))
     nil))
 
-(defgeneric axis-keys (object axis)
-  (:method (object axis)
-    (declare (ignore object axis))
-    nil))             
-    
 (defgeneric make-cell-iterator (object axis)
   (:method (object axis)
     (declare (ignore object axis))
@@ -66,6 +61,11 @@
     nil))
 
 (defgeneric cell-makunbound (object axis cell))
+
+(defgeneric cell-makunbound-p (object axis cell)
+  (:method (object axis cell)
+    (declare (ignore object axis cell))
+    nil))
 
 (defgeneric describe-axis (object axis stream))
 

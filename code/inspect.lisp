@@ -37,6 +37,26 @@
                    (third args) (second args))
            nil))))
 
+(defun terminal-makunbound (stream item)
+  (let ((args (aref (terminal-context-cells *inspect-context*) item)))
+    (cond ((apply #'cell-makunbound-p args)
+           (apply #'cell-makunbound args)
+           :redisplay)
+          (t
+           (format stream "Cell ~a~@[ on axis ~a~] does not support MAKUNBOUND.~%"
+                   (third args) (second args))
+           nil))))
+
+(defun terminal-remove (stream item)
+  (let ((args (aref (terminal-context-cells *inspect-context*) item)))
+    (cond ((apply #'cell-remove-p args)
+           (apply #'cell-remove args)
+           :redisplay)
+          (t
+           (format stream "Cell ~a~@[ on axis ~a~] does not support REMOVE.~%"
+                   (third args) (second args))
+           nil))))
+
 (defun terminal-inspect (object)
   (let ((*pretty-print* t)
         (*print-right-margin* (or *print-right-margin* 80))
@@ -47,7 +67,12 @@
           (gethash "h" commands) #'terminal-help
           (gethash "help" commands) #'terminal-help
           (gethash "s" commands) #'terminal-setf
-          (gethash "setf" commands) #'terminal-setf)
+          (gethash "setf" commands) #'terminal-setf
+          (gethash "m" commands) #'terminal-makunbound
+          (gethash "u" commands) #'terminal-makunbound
+          (gethash "makunbound" commands) #'terminal-makunbound
+          (gethash "r" commands) #'terminal-remove
+          (gethash "remove" commands) #'terminal-remove)
     (inspect-object object *terminal-io*)
     (terpri *terminal-io*)
     (loop for (command forms) = (multiple-value-list (read-command *terminal-io*))
