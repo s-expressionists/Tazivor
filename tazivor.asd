@@ -18,7 +18,8 @@
                              (:file "class")
                              (:file "standard-object")
                              (:file "symbol")
-                             (:file "describe")))))
+                             (:file "describe")
+                             (:file "inspect")))))
 
 (asdf:defsystem :tazivor/intrinsic
   :description "System for loading Tazivor intrinsically into an implementation."

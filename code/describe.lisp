@@ -19,8 +19,13 @@
              (format stream "~a~:@_" axis))
            (loop with iterator = (make-cell-iterator object axis)
                  for (cell cellp) = (multiple-value-list (funcall iterator))
+                 for count from 1
                  while cellp
-                 do (describe-cell object axis cell stream))))))
+                 if (and *print-level* (> count *print-level*))
+                   do (format stream "...~:@_")
+                      (loop-finish)
+                 else
+                   do (describe-cell object axis cell stream))))))
 
 (defmethod describe-cell (object axis cell stream)
   (format stream "~a ↦ ~2I~:_" cell)
@@ -29,5 +34,15 @@
     (if boundp
         (write value :stream stream)
         (write-string "UNBOUND" stream)))
+  (pprint-indent :block 0 stream)
+  (pprint-newline :mandatory stream))
+
+(defmethod describe-cell (object axis (cell (eql :documentation)) stream)
+  (format stream "~a ↦ " cell)
+  (multiple-value-bind (value boundp)
+      (cell-value object axis cell)
+    (if boundp
+        (format stream "~2I~@:_~a" value)
+        (format stream "~2I~:_UNBOUND")))
   (pprint-indent :block 0 stream)
   (pprint-newline :mandatory stream))

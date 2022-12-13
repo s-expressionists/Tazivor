@@ -70,3 +70,9 @@
 (defgeneric describe-axis (object axis stream))
 
 (defgeneric describe-cell (object axis cell stream))
+
+(defgeneric inspect-object (object stream))
+
+(defgeneric inspect-axis (object axis stream))
+
+(defgeneric inspect-cell (object axis cell stream))

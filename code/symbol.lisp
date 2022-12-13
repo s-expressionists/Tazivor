@@ -2,7 +2,7 @@
 
 (defmethod axes ((object symbol))
   (declare (ignore object))
-  `(variable class))
+  `(nil variable function class))
 
 (defmethod make-cell-iterator ((object symbol) (axis (eql 'variable)))
   (declare (ignore object axis))
@@ -56,3 +56,34 @@
         (values class t t)
         (values nil nil t))))
 
+(defmethod make-cell-iterator ((object symbol) (axis (eql 'function)))
+  (declare (ignore object axis))
+  (make-list-iterator (list :value :lambda-list :documentation)))
+
+(defmethod cell-value ((object symbol) (axis (eql 'function)) (cell (eql :value)))
+  (declare (ignore axis cell))
+  (if (fboundp object)
+      (values (symbol-function object) t t)
+      (values nil nil t)))
+
+(defmethod cell-value-setf-p ((object symbol) (axis (eql 'function)) (cell (eql :value)))
+  (declare (ignore object axis cell))
+  t)
+
+(defmethod (setf cell-value) (new-value (object symbol) (axis (eql 'function)) (cell (eql :value)))
+  (declare (ignore axis cell))
+  (setf (symbol-function object) new-value))
+
+(defmethod cell-makunbound-p ((object symbol) (axis (eql 'function)) (cell (eql :value)))
+  (declare (ignore object axis cell))
+  t)
+
+(defmethod cell-makunbound ((object symbol) (axis (eql 'function)) (cell (eql :value)))
+  (declare (ignore axis cell))
+  (fmakunbound object))
+
+(defmethod cell-value ((object symbol) (axis (eql 'function)) (cell (eql :lambda-list)))
+  (declare (ignore axis cell))
+  (if (fboundp object)
+      (values (lambda-list object) t t)
+      (values nil nil t)))
