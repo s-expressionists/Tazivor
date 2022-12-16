@@ -6,7 +6,8 @@
   :version (:read-file-form "version.sexp")
   :homepage "https://github.com/yitzchak/Tazivor"
   :bug-tracker "https://github.com/yitzchak/Tazivor/issues"
-  :depends-on (:closer-mop)
+  :depends-on (:closer-mop
+               (:feature :sbcl (:require :sb-introspect)))
   :components ((:module code
                 :serial t
                 :components ((:file "packages")

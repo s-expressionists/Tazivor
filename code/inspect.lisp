@@ -2,136 +2,93 @@
 
 (defvar *inspect-context*)
 
+(defclass reference ()
+  ((object :reader reference-object
+           :initarg :object)))
+
+(defclass axis-reference (reference)
+  ((axis :reader reference-axis
+         :initarg :axis)))
+
+(defclass cell-reference (axis-reference)
+  ((cell :reader reference-cell
+         :initarg :cell)))
+
 (defclass terminal-context ()
-  ((cells :reader terminal-context-cells
-          :initform (make-array 100 :adjustable t :fill-pointer 0))
+  ((references :reader terminal-context-references
+               :initform (make-array 100 :adjustable t :fill-pointer 0))
    (objects :accessor terminal-context-objects
             :initarg :objects
             :initform nil)))
 
+(defun whitespace-char-p (char)
+  (member char '(#\Space #\Tab #\Newline #\Return)))
+
 (defun read-command (stream)
   (write-string "> " stream)
-  (let ((line (read-line stream nil nil)))
-    (when line
-      (setf line (string-trim '(#\space #\tab #\newline #\return) line))
-      (let ((pos (position #\Space line)))
-        (if pos
-            (values (subseq line 0 pos)
-                    (with-input-from-string (s (subseq line pos))
-                      (loop for form = (read s nil s)
-                            until (eq form s)
-                            collect form)))
-            (values line nil))))))
+  (finish-output stream)
+  (loop for char = (read-char stream)
+        when (eql char #\Newline)
+          do (write-string "> " stream)
+             (finish-output stream)
+        unless (whitespace-char-p char)
+          return (values (char-upcase char)
+                         (unless (whitespace-char-p (peek-char nil stream))
+                           (aref (terminal-context-references *inspect-context*)
+                                 (parse-integer (with-output-to-string (s)
+                                                  (loop for char = (peek-char nil stream)
+                                                        until (whitespace-char-p char)
+                                                        do (write-char (read-char stream) s)))))))))
 
-(defun terminal-help (stream &optional (item nil itemp))
-  (if itemp
-      (let ((args (aref (terminal-context-cells *inspect-context*) item)))
-        (format stream "Inspector Help for ~a~@[ on axis ~a~]~%~
-                        (inspect|i) ~a             - inspect cell value~%"
-                (third args) (second args) item)
-        (when (apply #'cell-value-setf-p args)
-          (format stream "(setf|s) ~a <form>         - Set cell value~%" item))
-        (when (apply #'cell-makunbound-p args)
-          (format stream "(makunbound|m|u) ~a <form> - Set cell value to unbound~%" item))
-        (when (apply #'cell-remove-p args)
-          (format stream "(remove|r) ~a <form>       - Remove cell~%" item)))
-      (format stream "General Inspector Help~%~
-                      (help|h|?) <integer>?      - General help or cell specific help~%~
-                      (inspect|i) <integer>?     - Reinspect current object or cell~%~
-                      (setf|s) <integer> <form>  - SETF cell value~%~
-                      (makunbound|m|u) <integer> - MAKUNBOUND cell value~%~
-                      (remove|r) <integer>       - REMOVE cell~%~
-                      (quit|q)                   - Quit inspector~%"))
-  nil)
+(defgeneric inspect-command (stream key object)
+  (:method (stream key object)
+    (declare (ignore object))
+    (format stream "Unknown inspector command of ~a.~%" key)
+    nil))
 
-(defun terminal-inspect-current (stream &optional (item nil itemp))
-  (when itemp    
-    (push (aref (terminal-context-cells *inspect-context*) item)
-          (terminal-context-objects *inspect-context*)))
-  :inspect)
+(defgeneric inspect-cell-command (stream key object axis cell)
+  (:method (stream key object axis cell)
+    (declare (ignore object))
+    (format stream "Unknown cell inspector command of ~a.~%" key)
+    nil))
 
-(defun terminal-previous (stream)
-  (cond ((cdr (terminal-context-objects *inspect-context*))
-         (pop (terminal-context-objects *inspect-context*))
-         :inspect)
-        (t
-         (format stream "No previous object to inspect.~%")
-         nil)))
+(defun inspect-peek (stream)
+  (setf (fill-pointer (terminal-context-references *inspect-context*)) 0)
+  (inspect-object (first (terminal-context-objects *inspect-context*)) stream))
 
-(defun terminal-setf (stream item form)
-  (let ((args (aref (terminal-context-cells *inspect-context*) item)))
-    (cond ((apply #'cell-value-setf-p args)
-           (setf (apply #'cell-value args) (eval form))
-           :inspect)
-          (t
-           (format stream "Cell ~a~@[ on axis ~a~] does not support SETF.~%"
-                   (third args) (second args))
-           nil))))
-
-(defun terminal-makunbound (stream item)
-  (let ((args (aref (terminal-context-cells *inspect-context*) item)))
-    (cond ((apply #'cell-makunbound-p args)
-           (apply #'cell-makunbound args)
-           :inspect)
-          (t
-           (format stream "Cell ~a~@[ on axis ~a~] does not support MAKUNBOUND.~%"
-                   (third args) (second args))
-           nil))))
-
-(defun terminal-remove (stream item)
-  (let ((args (aref (terminal-context-cells *inspect-context*) item)))
-    (cond ((apply #'cell-remove-p args)
-           (apply #'cell-remove args)
-           :inspect)
-          (t
-           (format stream "Cell ~a~@[ on axis ~a~] does not support REMOVE.~%"
-                   (third args) (second args))
-           nil))))
+(defun inspect-push (stream object)
+  (setf (fill-pointer (terminal-context-references *inspect-context*)) 0)
+  (push object (terminal-context-objects *inspect-context*))
+  (inspect-object object stream))
 
 (defun terminal-inspect (object)
-  (let ((*pretty-print* t)
-        (*print-right-margin* (or *print-right-margin* 80))
-        (*print-circle* t)
-        (*inspect-context* (make-instance 'terminal-context :objects (list object)))
-        (commands (make-hash-table :test #'equalp)))
-    (setf (gethash "?" commands) #'terminal-help
-          (gethash "h" commands) #'terminal-help
-          (gethash "help" commands) #'terminal-help
-          (gethash "inspect" commands) #'terminal-inspect-current
-          (gethash "i" commands) #'terminal-inspect-current
-          (gethash "previous" commands) #'terminal-previous
-          (gethash "p" commands) #'terminal-previous
-          (gethash "s" commands) #'terminal-setf
-          (gethash "setf" commands) #'terminal-setf
-          (gethash "m" commands) #'terminal-makunbound
-          (gethash "u" commands) #'terminal-makunbound
-          (gethash "makunbound" commands) #'terminal-makunbound
-          (gethash "r" commands) #'terminal-remove
-          (gethash "remove" commands) #'terminal-remove)
-    (inspect-object object *terminal-io*)
-    (terpri *terminal-io*)
-    (loop for (command forms) = (multiple-value-list (read-command *terminal-io*))
-          for handler = (gethash command commands)
-          while handler
-          do (case (apply handler *terminal-io* forms)
-               (:quit
-                (return-from terminal-inspect))
-               (:inspect
-                (setf (fill-pointer (terminal-context-cells *inspect-context*)) 0)
-                (inspect-object (first (terminal-context-objects *inspect-context*) *terminal-io*)
-                (terpri *terminal-io*))))))
+  (loop with *pretty-print* = t
+        with *print-right-margin* = (or *print-right-margin* 80)
+        with *print-circle* = t
+        with *inspect-context* = (make-instance 'terminal-context :objects (list object))
+        for (key reference) = (multiple-value-list (read-command *query-io*))
+        initially (inspect-peek *query-io*)
+        finally (format *query-io* "Leaving inspection mode.~%")
+        while (etypecase reference
+                (null
+                 (inspect-command *query-io* key
+                                  (first (terminal-context-objects *inspect-context*))))
+                (cell-reference
+                 (inspect-cell-command *query-io* key
+                                       (reference-object reference)
+                                       (reference-axis reference)
+                                       (reference-cell reference)))))
   (values))
 
 (defmethod inspect-object (object stream)
-  (pprint-logical-block (stream nil)
+  (pprint-logical-block (stream (axes object))
     (format stream "~s~:@_" object)
-    (pprint-logical-block (stream (axes object))
-      (loop (pprint-exit-if-list-exhausted)
-            (inspect-axis object (pprint-pop) stream)))))
+    (loop (pprint-exit-if-list-exhausted)
+          (inspect-axis object (pprint-pop) stream))))
 
 (defmethod inspect-axis (object axis stream)
+  (terpri stream)
   (pprint-logical-block (stream nil)
-    (pprint-newline :mandatory stream)
     (cond ((and axis (listp axis))
            (format stream "~a~2I~:@_" (first axis))
            (loop for sub-axis in (cdr axis)
@@ -147,33 +104,119 @@
                    do (format stream "...~:@_")
                       (loop-finish)
                  else
-                   do (inspect-cell object axis cell stream))))
-    (pprint-indent :block 0)))
+                   do (inspect-cell object axis cell stream))))))
 
 (defmethod inspect-cell (object axis cell stream)
-  (with-accessors ((cells terminal-context-cells))
+  (with-accessors ((references terminal-context-references))
       *inspect-context*
-    (format stream "~a. ~a ↦ ~2I~:_" (length cells) cell)
-    (vector-push-extend (list object axis cell) cells)
-    (multiple-value-bind (value boundp)
-        (cell-value object axis cell)
-      (if boundp
-          (write value :stream stream)
-          (write-string "UNBOUND" stream)))
-    (pprint-indent :block 0 stream)
+    (pprint-logical-block (stream nil)
+      (format stream "~a. ~a ↦ ~2I~:_" (length references) cell)
+      (vector-push-extend (make-instance 'cell-reference :object object
+                                                         :axis axis
+                                                         :cell cell)
+                          references)
+      (multiple-value-bind (value boundp)
+          (cell-value object axis cell)
+        (if boundp
+            (write value :stream stream)
+            (write-string "UNBOUND" stream))))
     (pprint-newline :mandatory stream)))
 
 (defmethod inspect-cell (object axis (cell (eql :documentation)) stream)
-  (with-accessors ((cells terminal-context-cells))
+  (with-accessors ((references terminal-context-references))
       *inspect-context*
-    (format stream "~a. ~a ↦ " (length cells) cell)
-    (vector-push-extend (list object axis cell) cells)
-    (multiple-value-bind (value boundp)
-        (cell-value object axis cell)
-      (if boundp
-          (format stream "~2I~@:_~a" value)
-          (format stream "~2I~:_UNBOUND")))
-    (pprint-indent :block 0 stream)
+    (pprint-logical-block (stream nil)
+      (format stream "~a. ~a ↦ " (length references) cell)
+      (vector-push-extend (make-instance 'cell-reference :object object
+                                                         :axis axis
+                                                         :cell cell)
+                          references)
+      (multiple-value-bind (value boundp)
+          (cell-value object axis cell)
+        (if boundp
+            (format stream "~2I~@:_~a" value)
+            (format stream "~2I~:_UNBOUND"))))
     (pprint-newline :mandatory stream)))
 
 (setf *inspector-hook* #'terminal-inspect)
+
+(defmethod inspect-command (stream (key (eql #\E)) object)
+  (declare (ignore key object))
+  (pprint (eval (read stream)) stream)
+  t)
+
+(defmethod inspect-command (stream (key (eql #\H)) object)
+  (declare (ignore stream key object))
+  (format stream "General Inspector Help~%~
+                  h<integer>?        - General help or cell specific help~%~
+                  i<integer>?        - Inspect current object or cell~%~
+                  p                  - Inspect previous object~%~
+                  s<integer> <form>  - SETF cell value~%~
+                  m<integer>         - MAKUNBOUND cell value~%~
+                  r<integer>         - REMOVE cell~%~
+                  e <form>           - eval form~%~
+                  q                  - Quit inspector~%")
+  t)
+
+(defmethod inspect-cell-command (stream (key (eql #\H)) object axis cell)
+  (format stream "Inspector Help for ~a~@[ on axis ~a~]~%~
+                  i<integer>         - inspect cell value~%"
+          cell axis)
+  (when (cell-value-setf-p object axis cell)
+    (format stream "s<integer> <form>  - Set cell value~%"))
+  (when (cell-makunbound-p object axis cell)
+    (format stream "m<integer>         - Set cell value to unbound~%"))
+  (when (cell-remove-p object axis cell)
+    (format stream "r<integer>         - Remove cell~%"))
+  t)
+
+(defmethod inspect-command (stream (key (eql #\I)) object)
+  (declare (ignore stream key object))
+  (inspect-peek stream)
+  t)
+
+(defmethod inspect-cell-command (stream (key (eql #\I)) object axis cell)
+  (declare (ignore stream key object axis cell))
+  (multiple-value-bind (value boundp)
+      (cell-value object axis cell)
+    (cond (boundp
+           (inspect-push stream value))
+          (t
+           (format stream "Cell ~a~@[ on axis ~a~] is UNBOUND.~%"
+                   cell axis)))
+    t))
+
+(defmethod inspect-cell-command (stream (key (eql #\M)) object axis cell)
+  (cond ((cell-makunbound-p object axis cell)
+         (cell-makunbound object axis cell)
+         (inspect-peek stream))
+        (t
+         (format stream "Cell ~a~@[ on axis ~a~] does not support MAKUNBOUND.~%"
+                 cell axis)))
+  t)
+
+(defmethod inspect-command (stream (key (eql #\P)) object)
+  (declare (ignore stream key object))
+  t)
+
+(defmethod inspect-command (stream (key (eql #\Q)) object)
+  (declare (ignore stream key object))
+  nil)
+
+(defmethod inspect-cell-command (stream (key (eql #\R)) object axis cell)
+  (cond ((cell-remove-p object axis cell)
+         (cell-remove object axis cell)
+         (inspect-peek stream))
+        (format stream "Cell ~a~@[ on axis ~a~] does not support REMOVE.~%"
+                cell axis))
+  t)
+
+(defmethod inspect-cell-command (stream (key (eql #\S)) object axis cell)
+  (let ((form (read stream)))
+    (cond ((cell-value-setf-p object axis cell)
+           (setf (cell-value object axis cell) (eval form))
+           (inspect-peek stream))
+          (t
+           (format stream "Cell ~a~@[ on axis ~a~] does not support SETF.~%"
+                   cell axis)))
+    t))
