@@ -1,9 +1,11 @@
 (in-package #:tazivor)
 
-(defun make-list-iterator (list)
+(defun make-list-iterator (list &key (tail #'cdr) (head #'car))
   (lambda ()
     (if list
-        (values (pop list) t)
+        (multiple-value-prog1
+            (values (funcall head list) t)
+          (setf list (funcall tail list)))
         (values nil nil))))
 
 (defun lambda-list (sym)
@@ -18,5 +20,4 @@
   #+lispworks
     (lispworks:function-lambda-list sym)
   #-(or ccl clisp clasp ecl lispworks sbcl)
-    (second (function-lambda-expression (or (macro-function sym)
-                                            (fdefinition sym)))))
+    (second (function-lambda-expression sym)))

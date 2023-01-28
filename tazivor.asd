@@ -18,6 +18,7 @@
                              (:file "hash-table")
                              (:file "class")
                              (:file "standard-object")
+                             (:file "structure-object")
                              (:file "symbol")
                              (:file "describe")
                              (:file "inspect")))))

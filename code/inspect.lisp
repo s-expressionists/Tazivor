@@ -44,13 +44,13 @@
   (:method (stream key object)
     (declare (ignore object))
     (format stream "Unknown inspector command of ~a.~%" key)
-    nil))
+    t))
 
 (defgeneric inspect-cell-command (stream key object axis cell)
   (:method (stream key object axis cell)
     (declare (ignore object))
     (format stream "Unknown cell inspector command of ~a.~%" key)
-    nil))
+    t))
 
 (defun inspect-peek (stream)
   (setf (fill-pointer (terminal-context-references *inspect-context*)) 0)
@@ -110,7 +110,7 @@
   (with-accessors ((references terminal-context-references))
       *inspect-context*
     (pprint-logical-block (stream nil)
-      (format stream "~a. ~a ↦ ~2I~:_" (length references) cell)
+      (format stream "~a. ~2:I~a ↦ ~:_" (length references) cell)
       (vector-push-extend (make-instance 'cell-reference :object object
                                                          :axis axis
                                                          :cell cell)
@@ -126,7 +126,7 @@
   (with-accessors ((references terminal-context-references))
       *inspect-context*
     (pprint-logical-block (stream nil)
-      (format stream "~a. ~a ↦ " (length references) cell)
+      (format stream "~a. ~2:I~a ↦ " (length references) cell)
       (vector-push-extend (make-instance 'cell-reference :object object
                                                          :axis axis
                                                          :cell cell)
@@ -134,8 +134,8 @@
       (multiple-value-bind (value boundp)
           (cell-value object axis cell)
         (if boundp
-            (format stream "~2I~@:_~a" value)
-            (format stream "~2I~:_UNBOUND"))))
+            (format stream "~@:_~a" value)
+            (format stream "~:_UNBOUND"))))
     (pprint-newline :mandatory stream)))
 
 (setf *inspector-hook* #'terminal-inspect)
