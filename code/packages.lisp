@@ -1,10 +1,9 @@
 (in-package #:common-lisp-user)
 
+#+sbcl (require :sb-introspect)
+
 (defpackage #:tazivor
   (:use #:common-lisp)
-  (:shadow #:describe
-           #:describe-object
-           #:inspect)
   (:export #:axes
            #:cell-makunbound
            #:cell-makunbound-p
@@ -12,7 +11,6 @@
            #:cell-remove-p
            #:cell-value
            #:cell-value-setf-p
-           #:describe
-           #:describe-object
-           #:inspect
-           #:make-cell-iterator))
+           #:describe-object-impl
+           #:make-cell-iterator
+           #:terminal-inspect))

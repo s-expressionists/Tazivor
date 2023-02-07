@@ -6,8 +6,7 @@
   :version (:read-file-form "version.sexp")
   :homepage "https://github.com/yitzchak/Tazivor"
   :bug-tracker "https://github.com/yitzchak/Tazivor/issues"
-  :depends-on (:closer-mop
-               (:feature :sbcl (:require :sb-introspect)))
+  :depends-on (:closer-mop)
   :components ((:module code
                 :serial t
                 :components ((:file "packages")
@@ -22,16 +21,3 @@
                              (:file "symbol")
                              (:file "describe")
                              (:file "inspect")))))
-
-(asdf:defsystem :tazivor/intrinsic
-  :description "System for loading Tazivor intrinsically into an implementation."
-  :license "MIT"
-  :author "Tarn W. Burton"
-  :maintainer "Tarn W. Burton"
-  :version (:read-file-form "version.sexp")
-  :homepage "https://github.com/yitzchak/Tazivor"
-  :bug-tracker "https://github.com/yitzchak/Tazivor/issues"
-  :depends-on (:tazivor :trivial-package-locks)
-  :components ((:module code
-                :serial t
-                :components ((:file "intrinsic")))))

@@ -25,6 +25,7 @@
   (member char '(#\Space #\Tab #\Newline #\Return)))
 
 (defun read-command (stream)
+  (terpri stream)
   (write-string "> " stream)
   (finish-output stream)
   (loop for char = (read-char stream)
@@ -54,12 +55,18 @@
 
 (defun inspect-peek (stream)
   (setf (fill-pointer (terminal-context-references *inspect-context*)) 0)
-  (inspect-object (first (terminal-context-objects *inspect-context*)) stream))
+  (if (terminal-context-objects *inspect-context*)
+      (inspect-object (first (terminal-context-objects *inspect-context*)) stream)
+      (format stream "No previous object to inspect~%")))
 
 (defun inspect-push (stream object)
   (setf (fill-pointer (terminal-context-references *inspect-context*)) 0)
   (push object (terminal-context-objects *inspect-context*))
   (inspect-object object stream))
+
+(defun inspect-pop (stream)
+  (pop (terminal-context-objects *inspect-context*))
+  (inspect-peek stream))
 
 (defun terminal-inspect (object)
   (loop with *pretty-print* = t
@@ -110,7 +117,7 @@
   (with-accessors ((references terminal-context-references))
       *inspect-context*
     (pprint-logical-block (stream nil)
-      (format stream "~a. ~2:I~a ↦ ~:_" (length references) cell)
+      (format stream "~a. ~2:I~a ↦ ~:_" (length references) (cell-name object axis cell))
       (vector-push-extend (make-instance 'cell-reference :object object
                                                          :axis axis
                                                          :cell cell)
@@ -126,7 +133,7 @@
   (with-accessors ((references terminal-context-references))
       *inspect-context*
     (pprint-logical-block (stream nil)
-      (format stream "~a. ~2:I~a ↦ " (length references) cell)
+      (format stream "~a. ~2:I~a ↦ " (length references) (cell-name object axis cell))
       (vector-push-extend (make-instance 'cell-reference :object object
                                                          :axis axis
                                                          :cell cell)
@@ -149,7 +156,7 @@
   (declare (ignore stream key object))
   (format stream "General Inspector Help~%~
                   h<integer>?        - General help or cell specific help~%~
-                  i<integer>?        - Inspect current object or cell~%~
+                  i<integer>?        - Inspect current object or cell value~%~
                   p                  - Inspect previous object~%~
                   s<integer> <form>  - SETF cell value~%~
                   m<integer>         - MAKUNBOUND cell value~%~
@@ -176,7 +183,7 @@
   t)
 
 (defmethod inspect-cell-command (stream (key (eql #\I)) object axis cell)
-  (declare (ignore stream key object axis cell))
+  (declare (ignore key))
   (multiple-value-bind (value boundp)
       (cell-value object axis cell)
     (cond (boundp
@@ -185,6 +192,11 @@
            (format stream "Cell ~a~@[ on axis ~a~] is UNBOUND.~%"
                    cell axis)))
     t))
+
+(defmethod inspect-cell-command (stream (key (eql #\C)) object axis cell)
+  (declare (ignore key object axis))
+  (inspect-push stream cell)
+  t)
 
 (defmethod inspect-cell-command (stream (key (eql #\M)) object axis cell)
   (cond ((cell-makunbound-p object axis cell)
@@ -197,6 +209,7 @@
 
 (defmethod inspect-command (stream (key (eql #\P)) object)
   (declare (ignore stream key object))
+  (inspect-pop stream)
   t)
 
 (defmethod inspect-command (stream (key (eql #\Q)) object)

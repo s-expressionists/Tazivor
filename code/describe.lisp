@@ -1,6 +1,6 @@
 (in-package #:tazivor)
 
-(defmethod describe-object (object stream)
+(defun describe-object-impl (object stream)
   (pprint-logical-block (stream nil)
     (format stream "~s~:@_" object)
     (pprint-logical-block (stream (axes object))
@@ -28,7 +28,7 @@
                    do (describe-cell object axis cell stream))))))
 
 (defmethod describe-cell (object axis cell stream)
-  (format stream "~a ↦ ~2I~:_" cell)
+  (format stream "~a ↦ ~2I~:_" (cell-name object axis cell))
   (multiple-value-bind (value boundp)
       (cell-value object axis cell)
     (if boundp
@@ -38,7 +38,7 @@
   (pprint-newline :mandatory stream))
 
 (defmethod describe-cell (object axis (cell (eql :documentation)) stream)
-  (format stream "~a ↦ " cell)
+  (format stream "~a ↦ " (cell-name object axis cell))
   (multiple-value-bind (value boundp)
       (cell-value object axis cell)
     (if boundp

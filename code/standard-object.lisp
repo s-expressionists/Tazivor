@@ -1,10 +1,19 @@
 (in-package #:tazivor)
 
 (defmethod axes ((object standard-object))
-  (list :slots))
+  (list nil :slots))
+
+(defmethod make-cell-iterator ((object standard-object) (axis (eql nil)))
+  (make-list-iterator '(:type)))
+
+(defmethod cell-value ((object standard-object) (axis (eql nil)) (cell (eql :type)))
+  (values (type-of object) t t))
 
 (defmethod make-cell-iterator ((object standard-object) (axis (eql :slots)))
   (make-list-iterator (closer-mop:class-slots (class-of object))))
+
+(defmethod cell-name ((object standard-object) (axis (eql :slots)) (cell closer-mop:slot-definition))
+  (closer-mop:slot-definition-name cell))
 
 (defmethod cell-value ((object standard-object) (axis (eql :slots)) (cell closer-mop:slot-definition))
   (let ((class (class-of object)))
